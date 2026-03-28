@@ -56,6 +56,13 @@ class Skin(BaseModel):
     preco_compra: float = 0.0
     iof_aplicavel: bool = False
     preco_atual: float = 0.0
+    preco_provider: str = ""
+    preco_metodo: str = ""
+    preco_amostra: int = 0
+    preco_confianca: str = ""
+    preco_cache_hit: bool = False
+    preco_stale: bool = False
+    preco_atualizado_em: str = ""
     notas: str = ""
     market_hash_name: str = ""
     criado_em: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -63,25 +70,45 @@ class Skin(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def total_com_iof(self) -> float:
-        if self.iof_aplicavel and self.preco_compra > 0:
-            return round(self.preco_compra * 1.0638, 2)
-        return self.preco_compra
+        return self.total_com_iof_com_taxa()
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def lucro(self) -> float:
-        if self.preco_atual > 0 and self.total_com_iof > 0:
-            return round(self.preco_atual - self.total_com_iof, 2)
-        if self.preco_atual > 0 and self.total_com_iof == 0:
-            return self.preco_atual
-        return 0.0
+        return self.lucro_com_taxa()
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def variacao_pct(self) -> float:
-        if self.total_com_iof > 0 and self.preco_atual > 0:
-            return round((self.preco_atual - self.total_com_iof) / self.total_com_iof, 4)
+        return self.variacao_pct_com_taxa()
+
+    def total_com_iof_com_taxa(self, iof_percentual: float = 6.38) -> float:
+        if self.iof_aplicavel and self.preco_compra > 0:
+            return round(self.preco_compra * (1 + (iof_percentual / 100)), 2)
+        return self.preco_compra
+
+    def lucro_com_taxa(self, iof_percentual: float = 6.38) -> float:
+        total_com_iof = self.total_com_iof_com_taxa(iof_percentual)
+        if self.preco_atual > 0 and total_com_iof > 0:
+            return round(self.preco_atual - total_com_iof, 2)
+        if self.preco_atual > 0 and total_com_iof == 0:
+            return self.preco_atual
         return 0.0
+
+    def variacao_pct_com_taxa(self, iof_percentual: float = 6.38) -> float:
+        total_com_iof = self.total_com_iof_com_taxa(iof_percentual)
+        if total_com_iof > 0 and self.preco_atual > 0:
+            return round((self.preco_atual - total_com_iof) / total_com_iof, 4)
+        return 0.0
+
+    def status_preco(self) -> str:
+        if self.preco_atual <= 0:
+            return "Sem preco"
+        if self.preco_stale:
+            return "Cache expirado"
+        if self.preco_cache_hit:
+            return "Cache"
+        return "Ao vivo"
 
     def gerar_market_hash_name(self) -> str:
         """Gera o market_hash_name para busca de preço nas APIs."""
@@ -115,6 +142,30 @@ class ApiConfig(BaseModel):
     steam_enabled: bool = True
     iof_percentual: float = 6.38
     provider_preferido: str = "steam"
+
+
+class PriceCacheEntry(BaseModel):
+    """Entrada persistida de cache de preÃ§o ou cÃ¢mbio."""
+
+    key: str
+    preco: float
+    moeda: str = "BRL"
+    provider: str = ""
+    metodo: str = ""
+    amostra: int = 0
+    confianca: str = ""
+    ttl_seconds: int
+    atualizado_em_ts: float
+
+
+class ProviderState(BaseModel):
+    """Estado persistido para rate limit e cooldown."""
+
+    last_request_ts: float = 0.0
+    last_success_ts: float = 0.0
+    consecutive_failures: int = 0
+    cooldown_until_ts: float = 0.0
+    last_error: str = ""
 
 
 class AppData(BaseModel):

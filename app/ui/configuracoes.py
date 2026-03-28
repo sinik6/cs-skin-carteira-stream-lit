@@ -1,4 +1,4 @@
-"""Página Configurações — gerencia API keys e preferências."""
+"""Pagina Configuracoes - gerencia API keys e preferencias."""
 
 from __future__ import annotations
 
@@ -6,21 +6,21 @@ import streamlit as st
 
 from app.config import PRICE_PROVIDERS
 from app.models import ApiConfig
+from app.services.runtime_state import get_provider_state, load_price_cache
 from app.services.storage import carregar_dados, salvar_dados
 
 
 def render() -> None:
-    """Renderiza a página de configurações."""
-    st.header("⚙️ Configurações")
+    """Renderiza a pagina de configuracoes."""
+    st.header("Configuracoes")
 
     data = carregar_dados()
     cfg = data.config
 
-    # --- API Keys ---
-    st.subheader("🔑 API Keys")
+    st.subheader("API Keys")
 
     with st.form("form_api_keys"):
-        st.markdown("Configure as chaves de API para buscar preços automaticamente.")
+        st.markdown("Configure as chaves e o comportamento seguro de busca de precos.")
 
         csfloat_key = st.text_input(
             "CSFloat API Key",
@@ -29,27 +29,36 @@ def render() -> None:
             help="Obtenha em: https://csfloat.com/developers",
         )
 
+        steam_enabled = st.toggle(
+            "Permitir Steam Market como fallback",
+            value=cfg.steam_enabled,
+            help="Se desligado, o app usa apenas providers com API configurada.",
+        )
+
         provider = st.selectbox(
-            "Provider preferido para busca de preços",
+            "Provider preferido",
             options=PRICE_PROVIDERS,
             index=PRICE_PROVIDERS.index(cfg.provider_preferido)
             if cfg.provider_preferido in PRICE_PROVIDERS
             else 0,
-            format_func=lambda x: {"steam": "Steam Market (sem API key)", "csfloat": "CSFloat (requer API key)"}[x],
+            format_func=lambda x: {
+                "steam": "Steam Market",
+                "csfloat": "CSFloat",
+            }[x],
         )
 
-        submitted_keys = st.form_submit_button("💾 Salvar API Keys", type="primary")
+        submitted_keys = st.form_submit_button("Salvar API Keys", type="primary")
 
     if submitted_keys:
         cfg.csfloat_api_key = csfloat_key.strip()
-        cfg.provider_preferido = provider
+        cfg.steam_enabled = steam_enabled
+        cfg.provider_preferido = "csfloat" if cfg.csfloat_api_key else provider
         salvar_dados(data)
-        st.success("✅ API Keys salvas com sucesso!")
+        st.success("API Keys salvas com sucesso.")
 
     st.divider()
 
-    # --- IOF ---
-    st.subheader("💱 Taxa IOF")
+    st.subheader("Taxa IOF")
 
     with st.form("form_iof"):
         iof = st.number_input(
@@ -59,63 +68,57 @@ def render() -> None:
             value=cfg.iof_percentual,
             step=0.01,
             format="%.2f",
-            help="Taxa IOF para compras internacionais com cartão. Padrão: 6.38%%",
+            help="Taxa IOF para compras internacionais com cartao.",
         )
 
-        submitted_iof = st.form_submit_button("💾 Salvar IOF")
+        submitted_iof = st.form_submit_button("Salvar IOF")
 
     if submitted_iof:
         cfg.iof_percentual = iof
         salvar_dados(data)
-        st.success(f"✅ IOF atualizado para {iof:.2f}%")
+        st.success(f"IOF atualizado para {iof:.2f}%")
 
     st.divider()
 
-    # --- Status ---
-    st.subheader("📊 Status dos Providers")
+    st.subheader("Status dos Providers")
 
     col1, col2 = st.columns(2)
 
     with col1:
+        steam_state = get_provider_state("steam")
         st.markdown("**Steam Market**")
-        st.markdown("🟢 Disponível (sem API key)")
-        st.caption("Rate limit: ~20 req/min")
+        if cfg.steam_enabled:
+            st.markdown("Ativado como fallback")
+        else:
+            st.markdown("Desligado")
+        if steam_state.cooldown_until_ts > 0:
+            st.caption("Cooldown automatico e protecao contra falhas repetidas habilitados.")
+        else:
+            st.caption("Rate limit conservador e cache persistente ativos.")
 
     with col2:
         st.markdown("**CSFloat**")
         if cfg.csfloat_api_key:
-            st.markdown("🟢 Configurado")
+            st.markdown("Configurado")
         else:
-            st.markdown("🔴 API key não configurada")
-        st.caption("Rate limit: ~60 req/min")
+            st.markdown("API key nao configurada")
+        st.caption("Fonte principal quando a API key estiver presente.")
 
     st.divider()
 
-    # --- Info ---
-    with st.expander("ℹ️ Como obter as API Keys", expanded=False):
-        st.markdown("""
-### CSFloat
-1. Acesse [csfloat.com](https://csfloat.com)
-2. Faça login com sua conta Steam
-3. Vá em **Settings → Developer**
-4. Gere uma nova API key
-5. Cole aqui na configuração
+    with st.expander("Como funciona o modo seguro", expanded=False):
+        st.markdown(
+            """
+- O app prioriza CSFloat sempre que existir API key.
+- O Steam fica como fallback opcional.
+- Precos ficam em cache persistente para evitar chamadas repetidas.
+- Falhas repetidas no Steam ativam cooldown automatico.
+- O cambio USD/BRL tambem fica em cache.
+            """
+        )
 
-### Steam Market
-O Steam Market não requer API key. Os preços são buscados
-pela API pública do Steam Community Market.
-A limitação é o rate limit de ~20 requisições por minuto.
-
-### Provider Preferido
-- **Steam Market**: Preços em BRL direto, sem necessidade de key.
-  Os valores incluem a taxa de 15%% do Steam.
-- **CSFloat**: Preços reais do marketplace, geralmente mais baratos.
-  Os valores são convertidos de USD para BRL automaticamente.
-        """)
-
-    # --- Dados ---
     st.divider()
-    st.subheader("🗂️ Dados")
+    st.subheader("Dados")
 
     col_a, col_b = st.columns(2)
     with col_a:
@@ -125,10 +128,13 @@ A limitação é o rate limit de ~20 requisições por minuto.
         total = sum(s.total_com_iof for s in data.skins)
         st.metric("Investimento total", f"R$ {total:,.2f}")
 
-    if st.button("🗑️ Limpar TODOS os dados", type="secondary"):
-        st.warning("⚠️ Tem certeza? Esta ação é irreversível.")
-        if st.button("Confirmar exclusão total", type="secondary"):
+    st.caption(f"Entradas no cache persistente: {len(load_price_cache())}")
+
+    if st.button("Limpar TODOS os dados", type="secondary"):
+        st.warning("Tem certeza? Esta acao e irreversivel.")
+        if st.button("Confirmar exclusao total", type="secondary"):
             from app.models import AppData
+
             salvar_dados(AppData(config=cfg))
             st.success("Todos os dados foram removidos.")
             st.rerun()

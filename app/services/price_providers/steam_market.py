@@ -68,7 +68,15 @@ class SteamMarketProvider(PriceProvider):
             if preco <= 0:
                 return PriceResult.falha(self.nome, "Preço retornado inválido")
 
-            return PriceResult(preco=preco, moeda="BRL", provider=self.nome)
+            metodo = "lowest_price" if data.get("lowest_price") else "median_price"
+            return PriceResult(
+                preco=preco,
+                moeda="BRL",
+                provider=self.nome,
+                metodo=metodo,
+                amostra=1,
+                confianca="Baixa",
+            )
 
         except requests.exceptions.Timeout:
             return PriceResult.falha(self.nome, "Timeout na requisição")

@@ -5,8 +5,11 @@ from pathlib import Path
 APP_NAME = "CS2 Skin Tracker"
 APP_ICON = "🎮"
 
-DATA_DIR = Path("/app/data")
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = Path("/app/data") if Path("/app").exists() else BASE_DIR / "data"
 DATA_FILE = DATA_DIR / "skins.json"
+PRICE_CACHE_FILE = DATA_DIR / "price_cache.json"
+PROVIDER_STATE_FILE = DATA_DIR / "provider_state.json"
 
 TIPOS_ITEM = [
     "Arma", "Faca", "Luva", "Adesivo", "Agente",
@@ -28,5 +31,14 @@ PLATAFORMAS = [
 PRICE_PROVIDERS = ["steam", "csfloat"]
 
 # Rate limiting
-STEAM_DELAY_SECONDS = 3.5
-CSFLOAT_DELAY_SECONDS = 1.0
+STEAM_DELAY_SECONDS = 6.0
+CSFLOAT_DELAY_SECONDS = 1.5
+
+# Cache TTLs
+STEAM_CACHE_TTL_SECONDS = 60 * 60 * 2
+CSFLOAT_CACHE_TTL_SECONDS = 60 * 15
+FX_CACHE_TTL_SECONDS = 60 * 60 * 12
+
+# Protecao dos providers
+STEAM_FAILURE_THRESHOLD = 3
+STEAM_COOLDOWN_SECONDS = 60 * 30
