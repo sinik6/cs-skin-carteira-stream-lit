@@ -19,10 +19,10 @@ def _inject_global_styles() -> None:
     st.markdown(
         """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 .stApp {
@@ -124,12 +124,30 @@ html, body, [class*="css"] {
     background: rgba(255, 255, 255, 0.88);
 }
 
+[data-testid="stVerticalBlock"] [data-testid="stImage"] img {
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+    border-radius: 14px;
+}
+
+[data-testid="stVerticalBlock"] [data-testid="stImage"] img:hover {
+    transform: translateY(-3px) scale(1.018);
+    box-shadow: 0 16px 28px rgba(32, 49, 66, 0.18);
+    filter: saturate(1.06) contrast(1.02);
+}
+
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #203142 0%, #31475d 100%);
 }
 
 [data-testid="stSidebar"] * {
     color: #f4f7fb !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-testid="stVerticalBlock"] [data-testid="stImage"] img {
+        transition: none !important;
+        transform: none !important;
+    }
 }
 </style>
         """,

@@ -8,6 +8,7 @@ import streamlit as st
 
 from app.config import CATALOG_SNAPSHOT_FILE, PRICE_STALE_AFTER_HOURS, THUMBNAIL_PAGE_SIZE
 from app.models import AppData, Skin
+from app.services.catalog_sync import sync_catalog_snapshot
 from app.services.catalog_service import get_catalog_entry_for_skin, hydrate_app_data_from_catalog
 from app.services.storage import carregar_dados, salvar_dados
 from app.services.thumbnail_service import ThumbnailService
@@ -97,16 +98,31 @@ def _render_placeholder(skin: Skin) -> None:
     )
 
 
-def _sync_missing_thumbnails(data: AppData) -> None:
-    if not CATALOG_SNAPSHOT_FILE.exists():
-        st.warning("Catalogo local nao encontrado. Gere o arquivo current_skin_catalog.json na pasta de dados para preencher miniaturas sem depender de API em tempo real.")
+def _sync_catalog() -> None:
+    try:
+        result = sync_catalog_snapshot(force_refresh=False)
+    except Exception as exc:
+        st.error(f"Nao foi possivel sincronizar o catalogo local: {exc}")
         return
-    atualizadas = hydrate_app_data_from_catalog(data)
-    if atualizadas:
-        salvar_dados(data)
-        st.success(f"{atualizadas} skin(s) foram enriquecidas pelo catalogo local.")
+
+    if result.total_current_skins == 0:
+        st.info("Nao ha skins cadastradas para montar um catalogo local.")
+        return
+
+    if result.matched_skins == 0:
+        st.warning("O catalogo foi sincronizado, mas nenhuma skin atual encontrou correspondencia.")
+        return
+
+    st.success(
+        f"Catalogo sincronizado com sucesso. "
+        f"{result.matched_skins}/{result.total_current_skins} skin(s) casadas usando {len(result.source_files)} fonte(s)."
+    )
+    if result.hydrated_skins > 0:
+        st.caption(f"{result.hydrated_skins} skin(s) foram enriquecidas com market hash e miniaturas.")
+    elif result.unmatched_skins:
+        st.caption("As skins restantes continuam operando sem catalogo local, sem bloquear o app.")
     else:
-        st.info("Nenhuma atualizacao foi necessaria. O catalogo local ja foi aplicado.")
+        st.caption("Os dados locais ja estavam alinhados com o catalogo salvo.")
 
 
 def _render_grid(skins: list[Skin], iof_percentual: float) -> None:
@@ -226,14 +242,14 @@ def render() -> None:
 
     acao_1, acao_2 = st.columns([1.3, 2.7])
     with acao_1:
-        if st.button("Aplicar catalogo local", type="primary", use_container_width=True):
-            _sync_missing_thumbnails(data)
+        if st.button("Sincronizar catalogo", type="primary", use_container_width=True):
+            _sync_catalog()
             data = carregar_dados()
     with acao_2:
         if CATALOG_SNAPSHOT_FILE.exists():
-            st.caption("O inventario usa um catalogo local opcional para preencher miniaturas e detalhes sem depender de API externa em tempo real.")
+            st.caption("O inventario usa um catalogo local enxuto, com cache e sincronizacao manual, para preencher miniaturas e detalhes sem depender da API externa em tempo real.")
         else:
-            st.caption("Sem catalogo local configurado. O inventario continua funcionando e tambem aproveita imagens vindas do CSFloat quando existirem.")
+            st.caption("Sem catalogo local sincronizado ainda. O app continua funcionando e pode montar um snapshot enxuto sob demanda, baixando apenas as fontes necessarias.")
 
     busca_normalizada = busca.strip().lower()
     filtradas = []
