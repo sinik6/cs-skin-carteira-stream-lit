@@ -10,6 +10,7 @@ import streamlit as st
 from app.config import DESGASTES, PLATAFORMAS, PRICE_PROVIDERS, PRICE_STALE_AFTER_HOURS, THUMBNAIL_PAGE_SIZE, TIPOS_ITEM
 from app.models import AppData, Skin
 from app.services.catalog_service import hydrate_app_data_from_catalog
+from app.services.liquidity_service import compute_liquidity, record_liquidity_snapshot
 from app.services.price_providers.base import PriceResult
 from app.services.price_service import PriceService
 from app.services.storage import atualizar_skin, carregar_dados, remover_skin, salvar_dados
@@ -83,6 +84,7 @@ def _aplicar_resultado_preco(skin: Skin, result: PriceResult) -> None:
     skin.preco_atualizado_em = result.atualizado_em
     if result.imagem_url:
         skin.imagem_url = result.imagem_url
+    record_liquidity_snapshot(skin)
 
 
 def _render_galeria(skins: list[Skin]) -> None:
@@ -166,14 +168,15 @@ def _render_vitrine_compacta(skins: list[Skin], iof_percentual: float) -> None:
 
     st.caption(f"Mostrando {len(pagina_skins)} de {len(skins_com_imagem)} skin(s) com miniatura.")
 
-    for start in range(0, len(pagina_skins), 4):
-        cols = st.columns(4)
-        for col, skin in zip(cols, pagina_skins[start:start + 4]):
+    for start in range(0, len(pagina_skins), 5):
+        cols = st.columns(5)
+        for col, skin in zip(cols, pagina_skins[start:start + 5]):
             with col:
                 image_path = _thumbnail_path(skin)
                 status = _status_label(skin)
                 lucro = skin.lucro_com_taxa(iof_percentual)
                 variacao = skin.variacao_pct_com_taxa(iof_percentual) * 100
+                liquidity = compute_liquidity(skin)
 
                 with st.container(border=True):
                     if image_path:
@@ -182,9 +185,8 @@ def _render_vitrine_compacta(skins: list[Skin], iof_percentual: float) -> None:
                         st.caption("Miniatura indisponivel no modo seguro")
                     st.markdown(f"**{skin.nome}**")
                     st.caption(f"{skin.tipo} | {skin.desgaste}")
-                    st.caption(f"Compra: R$ {skin.preco_compra:.2f} | Atual: R$ {skin.preco_atual:.2f}")
-                    st.caption(f"Lucro: R$ {lucro:.2f} | Variacao: {variacao:+.1f}%")
-                    st.caption(f"Status: {status}")
+                    st.caption(f"Atual: R$ {skin.preco_atual:.2f} | Liquidez: {liquidity['score']:.1f} ({liquidity['nivel']})")
+                    st.caption(f"Lucro: R$ {lucro:.2f} | Var: {variacao:+.1f}% | {status}")
 
 
 def _hero(data: AppData) -> None:
@@ -237,6 +239,7 @@ def _render_tabela(skins: list[Skin], iof_percentual: float) -> None:
 
     rows = []
     for skin in skins:
+        liquidity = compute_liquidity(skin)
         rows.append(
             {
                 "Nome": skin.nome,
@@ -248,6 +251,7 @@ def _render_tabela(skins: list[Skin], iof_percentual: float) -> None:
                 "Metodo": skin.preco_metodo or "-",
                 "Amostra": skin.preco_amostra if skin.preco_amostra else "-",
                 "Confianca": _badge_confianca(skin.preco_confianca),
+                "Liquidez": f"{liquidity['score']:.1f} ({liquidity['nivel']})",
                 "Atualizado": _format_datetime(skin.preco_atualizado_em),
                 "Compra": skin.preco_compra,
                 "Com IOF": skin.total_com_iof_com_taxa(iof_percentual),

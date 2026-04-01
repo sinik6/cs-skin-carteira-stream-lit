@@ -11,6 +11,7 @@ DATA_FILE = DATA_DIR / "skins.json"
 DATA_FILE_BACKUP = DATA_DIR / "skins.backup.json"
 PRICE_CACHE_FILE = DATA_DIR / "price_cache.json"
 PROVIDER_STATE_FILE = DATA_DIR / "provider_state.json"
+LIQUIDITY_HISTORY_FILE = DATA_DIR / "liquidity_history.json"
 THUMBNAILS_DIR = DATA_DIR / "thumbs"
 THUMBNAIL_STATE_FILE = DATA_DIR / "thumbnail_state.json"
 CATALOG_SNAPSHOT_FILE = DATA_DIR / "current_skin_catalog.json"
@@ -33,6 +34,13 @@ PLATAFORMAS = [
 ]
 
 PRICE_PROVIDERS = ["steam", "csfloat"]
+
+# Mapeia plataformas de compra confiaveis para um provider preferencial.
+# Se nao houver mapeamento ou o provider nao estiver disponivel, o app usa o fluxo padrao.
+PLATFORM_PROVIDER_HINTS = {
+    "CSFloat": "csfloat",
+    "Steam Market": "steam",
+}
 
 # Rate limiting
 STEAM_DELAY_SECONDS = 6.0
@@ -60,3 +68,6 @@ THUMBNAIL_TIMEOUT_SECONDS = 5
 THUMBNAIL_MAX_BYTES = 300 * 1024
 THUMBNAIL_ERROR_COOLDOWN_SECONDS = 60 * 30
 THUMBNAIL_PAGE_SIZE = 24
+
+# Liquidez
+LIQUIDITY_MAX_POINTS_PER_SKIN = 240

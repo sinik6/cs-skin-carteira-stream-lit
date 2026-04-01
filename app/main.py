@@ -32,9 +32,9 @@ html, body, [class*="css"] {
 }
 
 .block-container {
-    padding-top: 1.8rem;
-    padding-bottom: 2rem;
-    max-width: 1480px;
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    max-width: 1760px;
 }
 
 [data-testid="stMetric"] {
@@ -137,6 +137,8 @@ html, body, [class*="css"] {
 
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #203142 0%, #31475d 100%);
+    min-width: 218px !important;
+    max-width: 218px !important;
 }
 
 [data-testid="stSidebar"] * {

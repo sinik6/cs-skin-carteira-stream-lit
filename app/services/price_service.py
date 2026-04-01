@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Callable
 from datetime import datetime
+from statistics import median
 
 from app.config import (
     CSFLOAT_CACHE_TTL_SECONDS,
     CSFLOAT_DELAY_SECONDS,
+    PLATFORM_PROVIDER_HINTS,
     STEAM_CACHE_TTL_SECONDS,
     STEAM_COOLDOWN_SECONDS,
     STEAM_DELAY_SECONDS,
@@ -84,23 +86,27 @@ class PriceService:
         seed = skin.pattern_seed if self._considerar_pattern else ""
 
         stale_candidates: list[tuple[float, PriceResult]] = []
+        successful_results: list[PriceResult] = []
         last_failure: PriceResult | None = None
 
-        for provider_name in self._provider_order():
+        for provider_name in self._provider_order(skin.plataforma):
             cache_key = build_price_cache_key(provider_name, market_name, float_val, margem, seed)
             cached = get_cached_price(cache_key)
             if cached and cached.preco > 0:
-                return PriceResult(
-                    preco=cached.preco,
-                    moeda=cached.moeda,
-                    provider=cached.provider,
-                    cache_hit=True,
-                    metodo=cached.metodo,
-                    amostra=cached.amostra,
-                    confianca=cached.confianca,
-                    atualizado_em=datetime.fromtimestamp(cached.atualizado_em_ts).isoformat(),
-                    imagem_url=cached.imagem_url,
+                successful_results.append(
+                    PriceResult(
+                        preco=cached.preco,
+                        moeda=cached.moeda,
+                        provider=cached.provider,
+                        cache_hit=True,
+                        metodo=cached.metodo,
+                        amostra=cached.amostra,
+                        confianca=cached.confianca,
+                        atualizado_em=datetime.fromtimestamp(cached.atualizado_em_ts).isoformat(),
+                        imagem_url=cached.imagem_url,
+                    )
                 )
+                continue
 
             stale_cache = get_cached_price(cache_key, allow_stale=True)
             if stale_cache and stale_cache.preco > 0:
@@ -137,15 +143,62 @@ class PriceService:
                 seed,
                 cache_key,
             )
-            if live_result.sucesso:
-                return live_result
+            if live_result.sucesso and live_result.preco > 0:
+                successful_results.append(live_result)
+                continue
             last_failure = live_result
+
+        if successful_results:
+            return self._aggregate_results(successful_results)
 
         if stale_candidates:
             stale_candidates.sort(key=lambda item: item[0], reverse=True)
             return stale_candidates[0][1]
 
         return last_failure or PriceResult.falha("", "Nenhum provider disponivel")
+
+    @staticmethod
+    def _aggregate_results(results: list[PriceResult]) -> PriceResult:
+        """Combina resultados validos de forma robusta e simples."""
+        valid = [result for result in results if result.sucesso and result.preco > 0]
+        if not valid:
+            return PriceResult.falha("", "Nenhum preco valido para agregacao")
+
+        if len(valid) == 1:
+            return valid[0]
+
+        prices = [result.preco for result in valid]
+        median_price = median(prices)
+        mean_price = sum(prices) / len(prices)
+        spread_pct = ((max(prices) - min(prices)) / median_price) if median_price > 0 else 0.0
+
+        if spread_pct <= 0.15:
+            final_price = round(mean_price, 2)
+            confidence = "Alta"
+            method = "media_simples"
+        elif spread_pct <= 0.35:
+            final_price = round(median_price, 2)
+            confidence = "Media"
+            method = "mediana_robusta"
+        else:
+            final_price = round(median_price, 2)
+            confidence = "Baixa"
+            method = "mediana_robusta"
+
+        providers = " + ".join(sorted({result.provider or "desconhecido" for result in valid}))
+        image_url = next((result.imagem_url for result in valid if result.imagem_url), "")
+
+        return PriceResult(
+            preco=final_price,
+            moeda=valid[0].moeda,
+            provider=f"Agregado ({providers})",
+            cache_hit=all(result.cache_hit for result in valid),
+            stale=all(result.stale for result in valid),
+            metodo=method,
+            amostra=len(valid),
+            confianca=confidence,
+            imagem_url=image_url,
+        )
 
     def buscar_precos_lote(
         self,
@@ -165,22 +218,34 @@ class PriceService:
 
         return resultados
 
-    def _provider_order(self) -> list[str]:
+    def _provider_order(self, plataforma_compra: str = "") -> list[str]:
         csfloat_ok = self._csfloat.esta_configurado()
         steam_ok = self._config.steam_enabled and self._steam.esta_configurado()
 
         ordered: list[str] = []
+        hinted_provider = self._provider_hint_from_platform(plataforma_compra)
+
+        if hinted_provider == "csfloat" and csfloat_ok:
+            ordered.append("csfloat")
+        elif hinted_provider == "steam" and steam_ok:
+            ordered.append("steam")
 
         # Prioriza CSFloat sempre que houver API key, para reduzir dependencia do Steam.
-        if csfloat_ok:
+        if csfloat_ok and "csfloat" not in ordered:
             ordered.append("csfloat")
-        if steam_ok:
+        if steam_ok and "steam" not in ordered:
             ordered.append("steam")
 
         if not ordered and self._config.provider_preferido == "steam" and self._steam.esta_configurado():
             ordered.append("steam")
 
         return ordered
+
+    @staticmethod
+    def _provider_hint_from_platform(plataforma_compra: str) -> str:
+        if not plataforma_compra:
+            return ""
+        return PLATFORM_PROVIDER_HINTS.get(plataforma_compra.strip(), "")
 
     def _buscar_preco_live(
         self,

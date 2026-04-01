@@ -5,9 +5,12 @@ from __future__ import annotations
 import streamlit as st
 
 from app.config import DESGASTES, PLATAFORMAS, TIPOS_ITEM
+from app.services.liquidity_service import record_liquidity_snapshot
 from app.models import Skin
 from app.services.price_service import PriceService
 from app.services.storage import adicionar_skin, carregar_dados
+
+PLATAFORMA_NAO_INFORMADA = "Nao informado (recomendado)"
 
 
 def render() -> None:
@@ -39,7 +42,12 @@ def render() -> None:
         st.subheader("Informacoes de Compra")
 
         col8, col9, col10 = st.columns(3)
-        plataforma = col8.selectbox("Plataforma de Compra", PLATAFORMAS)
+        plataforma = col8.selectbox(
+            "Plataforma de Compra",
+            [PLATAFORMA_NAO_INFORMADA, *PLATAFORMAS],
+            index=0,
+            help="Opcional, mas recomendado para priorizar fonte mais compativel na busca de preco.",
+        )
         preco_compra = col9.number_input("Preco de Compra (R$)", min_value=0.0, value=0.0, format="%.2f")
         iof = col10.selectbox("IOF Aplicavel?", ["Sim", "Nao"], index=0)
 
@@ -59,7 +67,7 @@ def render() -> None:
             float_value=float_val,
             stattrak=stattrak,
             pattern_seed=pattern.strip(),
-            plataforma=plataforma,
+            plataforma="" if plataforma == PLATAFORMA_NAO_INFORMADA else plataforma,
             preco_compra=preco_compra,
             iof_aplicavel=(iof == "Sim"),
             notas=notas.strip(),
@@ -82,6 +90,7 @@ def render() -> None:
                     skin.preco_atualizado_em = resultado.atualizado_em
                     if resultado.imagem_url:
                         skin.imagem_url = resultado.imagem_url
+                    record_liquidity_snapshot(skin)
 
                     st.success(f"Preco encontrado via **{resultado.provider}**: R$ {resultado.preco:.2f}")
                     if resultado.metodo:

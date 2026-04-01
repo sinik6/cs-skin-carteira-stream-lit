@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from app.models import AppData, Skin
+from app.models import ApiConfig, AppData, Skin
 from app.services import catalog_service, runtime_state, storage
 from app.services.bymykel_catalog import ByMykelCatalogClient, infer_required_sources
 from app.services import catalog_sync
 from app.services.catalog_sync import sync_catalog_snapshot
+from app.services.liquidity_service import compute_liquidity, get_liquidity_history, record_liquidity_snapshot
+from app.services.price_providers.base import PriceResult
 from app.services.price_providers.csfloat import CSFloatProvider
+from app.services.price_service import PriceService
 from app.services.thumbnail_service import ThumbnailService
 
 
@@ -166,6 +170,80 @@ class RuntimeStateCacheTests(unittest.TestCase):
             finally:
                 runtime_state.PRICE_CACHE_FILE = original_price_cache_file
                 runtime_state.PROVIDER_STATE_FILE = original_provider_state_file
+
+
+class PriceAggregationTests(unittest.TestCase):
+    def test_aggregate_uses_mean_when_sources_are_coherent(self) -> None:
+        result = PriceService._aggregate_results(
+            [
+                PriceResult(preco=100.0, provider="CSFloat", cache_hit=True),
+                PriceResult(preco=110.0, provider="Steam", cache_hit=True),
+            ]
+        )
+        self.assertEqual(result.preco, 105.0)
+        self.assertEqual(result.confianca, "Alta")
+        self.assertEqual(result.metodo, "media_simples")
+        self.assertIn("Agregado", result.provider)
+        self.assertTrue(result.cache_hit)
+
+    def test_aggregate_uses_median_when_spread_is_large(self) -> None:
+        result = PriceService._aggregate_results(
+            [
+                PriceResult(preco=100.0, provider="CSFloat"),
+                PriceResult(preco=180.0, provider="Steam"),
+            ]
+        )
+        self.assertEqual(result.preco, 140.0)
+        self.assertEqual(result.confianca, "Baixa")
+        self.assertEqual(result.metodo, "mediana_robusta")
+
+
+class PriceProviderRoutingTests(unittest.TestCase):
+    def test_platform_hint_prefers_csfloat_when_available(self) -> None:
+        svc = PriceService(ApiConfig(csfloat_api_key="key", steam_enabled=True))
+        self.assertEqual(svc._provider_order("CSFloat")[0], "csfloat")
+
+    def test_platform_hint_prefers_steam_when_available(self) -> None:
+        svc = PriceService(ApiConfig(csfloat_api_key="key", steam_enabled=True))
+        self.assertEqual(svc._provider_order("Steam Market")[0], "steam")
+
+    def test_platform_hint_falls_back_safely_when_preferred_is_unavailable(self) -> None:
+        svc = PriceService(ApiConfig(csfloat_api_key="", steam_enabled=True))
+        self.assertEqual(svc._provider_order("CSFloat"), ["steam"])
+
+
+class LiquidityServiceTests(unittest.TestCase):
+    def test_compute_liquidity_returns_score_and_level(self) -> None:
+        skin = Skin(
+            nome="AK-47 | Slate",
+            preco_atual=120.0,
+            preco_provider="Agregado (CSFloat + Steam)",
+            preco_amostra=12,
+            preco_confianca="Alta",
+            preco_atualizado_em=datetime.now().isoformat(),
+        )
+        result = compute_liquidity(skin)
+        self.assertGreaterEqual(result["score"], 0)
+        self.assertLessEqual(result["score"], 100)
+        self.assertIn(result["nivel"], {"Alta", "Media", "Baixa"})
+        self.assertEqual(result["fontes"], 2)
+
+    def test_record_liquidity_snapshot_stores_points_without_duplication(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            history_file = Path(temp_dir) / "liquidity_history.json"
+            skin = Skin(
+                id="abc123",
+                nome="AK-47 | Slate",
+                preco_atual=100.0,
+                preco_provider="Steam",
+                preco_amostra=4,
+                preco_confianca="Media",
+                preco_atualizado_em="2026-03-31T10:00:00",
+            )
+            record_liquidity_snapshot(skin, path=history_file)
+            record_liquidity_snapshot(skin, path=history_file)
+            points = get_liquidity_history("abc123", path=history_file)
+            self.assertEqual(len(points), 1)
 
 
 class CatalogServiceTests(unittest.TestCase):

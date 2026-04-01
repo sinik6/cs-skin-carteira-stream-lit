@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pandas as pd
 import streamlit as st
 
 from app.config import CATALOG_SNAPSHOT_FILE, PRICE_STALE_AFTER_HOURS, THUMBNAIL_PAGE_SIZE
 from app.models import AppData, Skin
 from app.services.catalog_sync import sync_catalog_snapshot
 from app.services.catalog_service import get_catalog_entry_for_skin, hydrate_app_data_from_catalog
+from app.services.liquidity_service import compute_liquidity, get_liquidity_history, record_liquidity_snapshot
 from app.services.storage import carregar_dados, salvar_dados
 from app.services.thumbnail_service import ThumbnailService
 
@@ -179,6 +181,10 @@ def _render_details(data: AppData, iof_percentual: float) -> None:
     if not skin:
         return
     catalog_entry = get_catalog_entry_for_skin(skin) or {}
+    if skin.preco_atual > 0:
+        record_liquidity_snapshot(skin)
+    liquidity = compute_liquidity(skin)
+    history = get_liquidity_history(skin.id)
 
     st.divider()
     st.markdown("### Detalhes da skin")
@@ -193,7 +199,7 @@ def _render_details(data: AppData, iof_percentual: float) -> None:
     with col2:
         st.markdown(f"## {skin.nome}")
         st.caption(f"{skin.tipo} | {skin.desgaste} | Status do preco: {_status_label(skin)}")
-        tab1, tab2, tab3 = st.tabs(["Resumo", "Mercado", "Cadastro"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Resumo", "Mercado", "Cadastro", "Liquidez"])
 
         with tab1:
             m1, m2, m3 = st.columns(3)
@@ -222,6 +228,33 @@ def _render_details(data: AppData, iof_percentual: float) -> None:
             st.write(f"Notas: **{skin.notas or '-'}**")
             st.write(f"Nome no catalogo: **{catalog_entry.get('name', '-')}**")
             st.write(f"Arquivo de origem: **{catalog_entry.get('source_file', '-')}**")
+
+        with tab4:
+            l1, l2, l3 = st.columns(3)
+            l1.metric("Score", f"{liquidity['score']:.1f}/100")
+            l2.metric("Nivel", liquidity["nivel"])
+            l3.metric("Fontes", liquidity["fontes"])
+            st.caption(
+                f"Amostra atual: {liquidity['amostra']} | "
+                f"Atualizado em: {_format_datetime(liquidity['atualizado_em'])}"
+            )
+
+            if history:
+                df = pd.DataFrame(history)
+                if "timestamp" in df.columns:
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+                    df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
+                if not df.empty:
+                    st.markdown("**Evolucao do score de liquidez**")
+                    st.line_chart(df.set_index("timestamp")["score"], use_container_width=True)
+                    st.markdown("**Amostra de mercado por atualizacao**")
+                    st.bar_chart(df.set_index("timestamp")["amostra"], use_container_width=True)
+                    st.markdown("**Preco de referencia no tempo**")
+                    st.line_chart(df.set_index("timestamp")["preco"], use_container_width=True)
+                else:
+                    st.info("Ainda sem historico suficiente para graficos.")
+            else:
+                st.info("Ainda sem historico de liquidez para esta skin. Atualize os precos para iniciar os graficos.")
 
         if catalog_entry.get("description"):
             st.caption(catalog_entry["description"])
