@@ -7,6 +7,9 @@ from unittest.mock import Mock, patch
 
 from app.models import AppData, Skin
 from app.services import catalog_service, runtime_state, storage
+from app.services.bymykel_catalog import ByMykelCatalogClient, infer_required_sources
+from app.services import catalog_sync
+from app.services.catalog_sync import sync_catalog_snapshot
 from app.services.price_providers.csfloat import CSFloatProvider
 from app.services.thumbnail_service import ThumbnailService
 
@@ -202,6 +205,106 @@ class CatalogServiceTests(unittest.TestCase):
             finally:
                 catalog_service.CATALOG_SNAPSHOT_FILE = original_snapshot_file
                 catalog_service.load_catalog_snapshot.cache_clear()
+
+
+class ByMykelCatalogTests(unittest.TestCase):
+    def test_infer_required_sources_uses_only_needed_categories(self) -> None:
+        raw_skins = [
+            {"nome": "AK-47 | Slate", "tipo": "Arma"},
+            {"nome": "Battle Scarred (Holo) (Roxo)", "tipo": "Adesivo"},
+            {"nome": "Lt. Commander Ricksaw", "tipo": "Agente"},
+            {"nome": "Missing Type", "tipo": "Outro"},
+        ]
+
+        self.assertEqual(
+            infer_required_sources(raw_skins),
+            [
+                "skins_not_grouped.json",
+                "stickers.json",
+                "agents.json",
+                "collectibles.json",
+                "tools.json",
+            ],
+        )
+
+    def test_remote_source_is_cached_locally(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "catalog_cache"
+            session = Mock()
+
+            response = Mock()
+            response.json.return_value = [{"name": "Sticker | Test", "market_hash_name": "Sticker | Test"}]
+            response.raise_for_status.return_value = None
+            session.get.return_value = response
+
+            client = ByMykelCatalogClient(cache_dir=cache_dir, session=session)
+            first = client.load_source_items("stickers.json")
+            second = client.load_source_items("stickers.json")
+
+            self.assertEqual(len(first), 1)
+            self.assertEqual(first, second)
+            self.assertEqual(session.get.call_count, 1)
+
+
+class CatalogSyncTests(unittest.TestCase):
+    def test_sync_catalog_snapshot_builds_snapshot_and_hydrates_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            original_catalog_snapshot_file = catalog_service.CATALOG_SNAPSHOT_FILE
+            original_catalog_sync_snapshot_file = catalog_sync.CATALOG_SNAPSHOT_FILE
+            original_storage_data_dir = storage.DATA_DIR
+            original_storage_data_file = storage.DATA_FILE
+            original_storage_backup_file = storage.DATA_FILE_BACKUP
+            try:
+                catalog_service.CATALOG_SNAPSHOT_FILE = temp_path / "current_skin_catalog.json"
+                catalog_sync.CATALOG_SNAPSHOT_FILE = temp_path / "current_skin_catalog.json"
+                storage.DATA_DIR = temp_path
+                storage.DATA_FILE = temp_path / "skins.json"
+                storage.DATA_FILE_BACKUP = temp_path / "skins.backup.json"
+
+                data = AppData(
+                    skins=[
+                        Skin(
+                            id="abc123",
+                            nome="Battle Scarred (Holo) (Roxo)",
+                            tipo="Adesivo",
+                            desgaste="N/A",
+                        )
+                    ]
+                )
+                storage.salvar_dados(data)
+
+                session = Mock()
+                response = Mock()
+                response.raise_for_status.return_value = None
+                response.json.return_value = [
+                    {
+                        "market_hash_name": "Sticker | Battle Scarred (Holo)",
+                        "name": "Sticker | Battle Scarred (Holo)",
+                        "image": "https://community.akamai.steamstatic.com/economy/image/test",
+                        "collections": [],
+                        "crates": [],
+                    }
+                ]
+                session.get.return_value = response
+
+                client = ByMykelCatalogClient(cache_dir=temp_path / "catalog_cache", session=session)
+                result = sync_catalog_snapshot(client=client)
+
+                self.assertEqual(result.matched_skins, 1)
+                self.assertEqual(result.hydrated_skins, 1)
+                self.assertTrue((temp_path / "current_skin_catalog.json").exists())
+
+                reloaded = storage.carregar_dados()
+                self.assertEqual(reloaded.skins[0].market_hash_name, "Sticker | Battle Scarred (Holo)")
+                self.assertIn("community.akamai.steamstatic.com", reloaded.skins[0].imagem_url)
+            finally:
+                catalog_service.CATALOG_SNAPSHOT_FILE = original_catalog_snapshot_file
+                catalog_sync.CATALOG_SNAPSHOT_FILE = original_catalog_sync_snapshot_file
+                catalog_service.load_catalog_snapshot.cache_clear()
+                storage.DATA_DIR = original_storage_data_dir
+                storage.DATA_FILE = original_storage_data_file
+                storage.DATA_FILE_BACKUP = original_storage_backup_file
 
 
 if __name__ == "__main__":

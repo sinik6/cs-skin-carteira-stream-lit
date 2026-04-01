@@ -166,9 +166,9 @@ def _render_vitrine_compacta(skins: list[Skin], iof_percentual: float) -> None:
 
     st.caption(f"Mostrando {len(pagina_skins)} de {len(skins_com_imagem)} skin(s) com miniatura.")
 
-    for start in range(0, len(pagina_skins), 3):
-        cols = st.columns(3)
-        for col, skin in zip(cols, pagina_skins[start:start + 3]):
+    for start in range(0, len(pagina_skins), 4):
+        cols = st.columns(4)
+        for col, skin in zip(cols, pagina_skins[start:start + 4]):
             with col:
                 image_path = _thumbnail_path(skin)
                 status = _status_label(skin)

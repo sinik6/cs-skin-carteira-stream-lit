@@ -13,6 +13,8 @@ data/skins.backup.json
 data/price_cache.json
 data/provider_state.json
 data/current_skin_catalog.json
+data/catalog_cache/
+data/thumbs/
 
 # Environment
 .env
