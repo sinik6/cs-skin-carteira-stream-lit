@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from app.models import ApiConfig, AppData, ComparisonSnapshot, MarketIntelligenceRecord, Skin
+from app.models import ApiConfig, AppData, AssetPosition, ComparisonSnapshot, MarketInstrument, MarketIntelligenceRecord, Skin, WeeklyPricePoint
 from app.services import catalog_service, runtime_state, storage
 from app.services.bymykel_catalog import ByMykelCatalogClient, infer_required_sources
 from app.services import catalog_sync
@@ -13,6 +13,14 @@ from app.services.comparison_service import ComparisonService, build_projection
 from app.services.catalog_sync import sync_catalog_snapshot
 from app.services.price_providers.csfloat import CSFloatProvider
 from app.services.thumbnail_service import ThumbnailService
+from app.ui.comparador import (
+    _build_asset_same_capital_view,
+    _asset_display_value,
+    _effective_skin_reference,
+    normalize_weekly_points,
+    summarize_skin_history,
+    summarize_weekly_points,
+)
 
 
 class SkinModelTests(unittest.TestCase):
@@ -101,6 +109,171 @@ class StorageBackupTests(unittest.TestCase):
                 self.assertEqual(len(loaded.history), 1)
             finally:
                 storage.MARKET_INTELLIGENCE_FILE = original_market_file
+
+    def test_asset_position_is_saved_locally(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            original_data_file = storage.DATA_FILE
+            original_backup_file = storage.DATA_FILE_BACKUP
+            original_data_dir = storage.DATA_DIR
+            try:
+                storage.DATA_DIR = temp_path
+                storage.DATA_FILE = temp_path / "skins.json"
+                storage.DATA_FILE_BACKUP = temp_path / "skins.backup.json"
+                storage.salvar_dados(AppData())
+
+                storage.adicionar_posicao_ativo(
+                    AssetPosition(
+                        instrument_id="asset_seed_googl",
+                        display_name="Alphabet Inc. Class A",
+                        symbol="GOOGL",
+                        quantity=3,
+                        average_cost_brl=920.0,
+                    )
+                )
+
+                loaded = storage.carregar_dados()
+                self.assertEqual(len(loaded.asset_positions), 1)
+                self.assertEqual(loaded.asset_positions[0].symbol, "GOOGL")
+                self.assertEqual(loaded.asset_positions[0].total_cost_brl, 2760.0)
+            finally:
+                storage.DATA_FILE = original_data_file
+                storage.DATA_FILE_BACKUP = original_backup_file
+                storage.DATA_DIR = original_data_dir
+
+
+class ComparisonDashboardHelpersTests(unittest.TestCase):
+    def test_effective_skin_reference_falls_back_to_asset_price(self) -> None:
+        snapshot = ComparisonSnapshot(
+            skin_id="skin_1",
+            skin_name="AK-47 | Slate",
+            market_hash_name="AK-47 | Slate (Factory New)",
+            asset_price_brl=87.37,
+        )
+        skin = Skin(nome="AK-47 | Slate", preco_compra=40.0)
+
+        value, label = _effective_skin_reference(snapshot, skin)
+        self.assertEqual(value, 87.37)
+        self.assertEqual(label, "Preco atual da skin")
+
+    def test_asset_display_value_uses_catalog_when_no_series(self) -> None:
+        asset = MarketInstrument(
+            id="asset_seed_aapl",
+            kind="stock",
+            display_name="Apple Inc.",
+            symbol="AAPL",
+            currency="USD",
+        )
+
+        value, delta = _asset_display_value(asset, {"summary": {"latest": None, "count": 0}})
+        self.assertEqual(value, "-")
+        self.assertIsNone(delta)
+
+    def test_build_asset_same_capital_view_uses_brl_cache(self) -> None:
+        summary = {
+            "first": WeeklyPricePoint(
+                instrument_id="asset_seed_googl",
+                week_end_date="2026-03-14",
+                close_native=172.8,
+                fx_rate_to_brl=5.08,
+                close_brl=877.82,
+                provider="seed_local",
+            ),
+            "latest": WeeklyPricePoint(
+                instrument_id="asset_seed_googl",
+                week_end_date="2026-04-04",
+                close_native=180.2,
+                fx_rate_to_brl=5.09,
+                close_brl=917.22,
+                provider="seed_local",
+            ),
+        }
+
+        result = _build_asset_same_capital_view({"summary": summary}, base_capital_brl=1000.0)
+        self.assertGreater(result["units"], 1.0)
+        self.assertGreater(result["current_value_brl"], 1000.0)
+        self.assertGreater(result["pnl_pct"], 0.0)
+
+    def test_normalize_weekly_points_keeps_latest_point_per_week(self) -> None:
+        points = [
+            WeeklyPricePoint(
+                instrument_id="asset_1",
+                week_end_date="2026-03-21",
+                close_native=100.0,
+                close_brl=100.0,
+                provider="twelvedata",
+            ),
+            WeeklyPricePoint(
+                instrument_id="asset_1",
+                week_end_date="2026-03-21",
+                close_native=101.0,
+                close_brl=101.0,
+                provider="alphavantage",
+            ),
+            WeeklyPricePoint(
+                instrument_id="asset_1",
+                week_end_date="2026-03-28",
+                close_native=110.0,
+                close_brl=110.0,
+                provider="twelvedata",
+            ),
+        ]
+
+        normalized = normalize_weekly_points(points)
+        self.assertEqual(len(normalized), 2)
+        self.assertEqual(normalized[0].close_native, 101.0)
+        self.assertEqual(normalized[1].week_end_date, "2026-03-28")
+
+    def test_summarize_weekly_points_calculates_delta(self) -> None:
+        points = [
+            WeeklyPricePoint(
+                instrument_id="asset_1",
+                week_end_date="2026-03-21",
+                close_native=100.0,
+                close_brl=100.0,
+                provider="twelvedata",
+            ),
+            WeeklyPricePoint(
+                instrument_id="asset_1",
+                week_end_date="2026-03-28",
+                close_native=112.0,
+                close_brl=112.0,
+                provider="twelvedata",
+            ),
+        ]
+
+        summary = summarize_weekly_points(points)
+        self.assertEqual(summary["count"], 2)
+        self.assertEqual(summary["delta_value"], 12.0)
+        self.assertAlmostEqual(summary["delta_pct"], 0.12)
+
+    def test_summarize_skin_history_uses_local_snapshots(self) -> None:
+        current = ComparisonSnapshot(
+            skin_id="skin_1",
+            skin_name="AK-47 | Slate",
+            market_hash_name="AK-47 | Slate (Factory New)",
+            benchmark_price_brl=155.0,
+            fetched_at="2026-04-04T10:00:00",
+        )
+        previous = ComparisonSnapshot(
+            skin_id="skin_1",
+            skin_name="AK-47 | Slate",
+            market_hash_name="AK-47 | Slate (Factory New)",
+            benchmark_price_brl=140.0,
+            fetched_at="2026-03-28T10:00:00",
+        )
+        record = MarketIntelligenceRecord(
+            skin_id="skin_1",
+            skin_name="AK-47 | Slate",
+            snapshot=current,
+            history=[current, previous],
+        )
+
+        summary = summarize_skin_history(current, record)
+        self.assertEqual(summary["count"], 2)
+        self.assertEqual(summary["current"], 155.0)
+        self.assertEqual(summary["delta_value"], 15.0)
+        self.assertAlmostEqual(summary["delta_pct"], 15 / 140, places=4)
 
 
 class ThumbnailServiceTests(unittest.TestCase):

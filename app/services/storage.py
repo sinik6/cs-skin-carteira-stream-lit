@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 from app.config import DATA_DIR, DATA_FILE, DATA_FILE_BACKUP, MARKET_INTELLIGENCE_FILE, MARKET_INTELLIGENCE_HISTORY_LIMIT
-from app.models import AppData, MarketIntelligenceRecord, Skin
+from app.models import AppData, AssetPosition, MarketIntelligenceRecord, Skin
 
 logger = logging.getLogger(__name__)
 _APP_DATA_CACHE: dict[Path, tuple[float, AppData]] = {}
@@ -120,6 +120,22 @@ def atualizar_skin(skin: Skin) -> AppData:
     """Atualiza uma skin existente."""
     data = carregar_dados()
     data.skins = [skin if s.id == skin.id else s for s in data.skins]
+    salvar_dados(data)
+    return data
+
+
+def adicionar_posicao_ativo(position: AssetPosition) -> AppData:
+    """Adiciona uma posicao de ativo e persiste."""
+    data = carregar_dados()
+    data.asset_positions.append(position)
+    salvar_dados(data)
+    return data
+
+
+def remover_posicao_ativo(position_id: str) -> AppData:
+    """Remove uma posicao de ativo pelo ID e persiste."""
+    data = carregar_dados()
+    data.asset_positions = [item for item in data.asset_positions if item.id != position_id]
     salvar_dados(data)
     return data
 

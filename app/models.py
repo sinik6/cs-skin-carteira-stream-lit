@@ -24,6 +24,16 @@ class TipoItem(StrEnum):
     OUTRO = "Outro"
 
 
+class InstrumentKind(StrEnum):
+    SKIN = "skin"
+    STOCK = "stock"
+    ETF = "etf"
+    REIT = "reit"
+    INDEX = "index"
+    CRYPTO = "crypto"
+    OTHER = "other"
+
+
 class Desgaste(StrEnum):
     FN = "Factory New (FN)"
     MW = "Minimal Wear (MW)"
@@ -140,6 +150,8 @@ class ApiConfig(BaseModel):
     """Configurações de API keys."""
 
     csfloat_api_key: str = ""
+    twelvedata_api_key: str = ""
+    alphavantage_api_key: str = ""
     steam_enabled: bool = True
     iof_percentual: float = 6.38
     provider_preferido: str = "steam"
@@ -248,8 +260,94 @@ class MarketIntelligenceRecord(BaseModel):
     history: list[ComparisonSnapshot] = Field(default_factory=list)
 
 
+class MarketInstrument(BaseModel):
+    """Instrumento canônico para comparações entre skins e ativos."""
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    kind: str = InstrumentKind.OTHER
+    display_name: str
+    symbol: str = ""
+    market_hash_name: str = ""
+    currency: str = "BRL"
+    exchange: str = ""
+    provider_primary: str = ""
+    provider_fallback: str = ""
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class InstrumentMetadata(BaseModel):
+    """Metadados persistidos em JSON por instrumento."""
+
+    instrument_id: str
+    payload_json: str = "{}"
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class WeeklyPricePoint(BaseModel):
+    """Série semanal normalizada em moeda nativa e BRL."""
+
+    instrument_id: str
+    week_end_date: str
+    close_native: float
+    fx_rate_to_brl: float = 1.0
+    close_brl: float
+    volume_like: float | None = None
+    provider: str = ""
+    quality: str = ""
+    collected_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class ComparisonProfile(BaseModel):
+    """Perfil salvo de comparação entre uma skin e um ativo."""
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    skin_instrument_id: str
+    asset_instrument_id: str
+    mode: str = "same_capital"
+    asset_units: float = 0.0
+    base_capital_brl: float = 1000.0
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class AssetSearchResult(BaseModel):
+    """Resultado de busca de ativo em provider externo."""
+
+    symbol: str
+    name: str
+    instrument_type: str = ""
+    exchange: str = ""
+    currency: str = "USD"
+    country: str = ""
+    provider: str = ""
+
+
+class AssetPosition(BaseModel):
+    """Posicao local de ativo adicionada pelo usuario."""
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    instrument_id: str
+    display_name: str
+    symbol: str
+    kind: str = InstrumentKind.OTHER
+    exchange: str = ""
+    currency: str = "BRL"
+    quantity: float = 0.0
+    average_cost_brl: float = 0.0
+    notes: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total_cost_brl(self) -> float:
+        return round(self.quantity * self.average_cost_brl, 2)
+
+
 class AppData(BaseModel):
     """Dados completos da aplicação."""
 
     skins: list[Skin] = Field(default_factory=list)
+    asset_positions: list[AssetPosition] = Field(default_factory=list)
     config: ApiConfig = Field(default_factory=ApiConfig)

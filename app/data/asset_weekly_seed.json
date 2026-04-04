@@ -1,0 +1,28 @@
+{
+  "series": [
+    {"instrument_id":"asset_seed_aapl","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",214.80,5.08],["2026-03-21",219.20,5.10],["2026-03-28",223.40,5.12],["2026-04-04",226.10,5.09]]},
+    {"instrument_id":"asset_seed_msft","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",418.50,5.08],["2026-03-21",422.30,5.10],["2026-03-28",428.90,5.12],["2026-04-04",431.80,5.09]]},
+    {"instrument_id":"asset_seed_nvda","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",116.20,5.08],["2026-03-21",119.60,5.10],["2026-03-28",124.40,5.12],["2026-04-04",127.20,5.09]]},
+    {"instrument_id":"asset_seed_amzn","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",185.40,5.08],["2026-03-21",187.90,5.10],["2026-03-28",191.30,5.12],["2026-04-04",194.10,5.09]]},
+    {"instrument_id":"asset_seed_googl","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",172.80,5.08],["2026-03-21",174.60,5.10],["2026-03-28",177.40,5.12],["2026-04-04",180.20,5.09]]},
+    {"instrument_id":"asset_seed_meta","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",505.20,5.08],["2026-03-21",511.10,5.10],["2026-03-28",519.80,5.12],["2026-04-04",526.30,5.09]]},
+    {"instrument_id":"asset_seed_tsla","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",228.40,5.08],["2026-03-21",233.90,5.10],["2026-03-28",241.80,5.12],["2026-04-04",247.50,5.09]]},
+    {"instrument_id":"asset_seed_spy","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",563.40,5.08],["2026-03-21",568.20,5.10],["2026-03-28",574.90,5.12],["2026-04-04",579.60,5.09]]},
+    {"instrument_id":"asset_seed_qqq","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",486.10,5.08],["2026-03-21",491.30,5.10],["2026-03-28",497.80,5.12],["2026-04-04",503.20,5.09]]},
+    {"instrument_id":"asset_seed_xlk","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",238.60,5.08],["2026-03-21",241.90,5.10],["2026-03-28",246.70,5.12],["2026-04-04",249.10,5.09]]},
+    {"instrument_id":"asset_seed_btcusd","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",91200.00,5.08],["2026-03-21",93400.00,5.10],["2026-03-28",95600.00,5.12],["2026-04-04",97100.00,5.09]]},
+    {"instrument_id":"asset_seed_ethusd","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",4840.00,5.08],["2026-03-21",4925.00,5.10],["2026-03-28",5035.00,5.12],["2026-04-04",5120.00,5.09]]},
+    {"instrument_id":"asset_seed_solusd","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",168.40,5.08],["2026-03-21",174.90,5.10],["2026-03-28",182.10,5.12],["2026-04-04",188.60,5.09]]},
+    {"instrument_id":"asset_seed_petr4","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",42.80,1.0],["2026-03-21",43.10,1.0],["2026-03-28",44.00,1.0],["2026-04-04",44.50,1.0]]},
+    {"instrument_id":"asset_seed_vale3","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",63.20,1.0],["2026-03-21",64.10,1.0],["2026-03-28",65.00,1.0],["2026-04-04",65.40,1.0]]},
+    {"instrument_id":"asset_seed_itub4","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",37.50,1.0],["2026-03-21",38.10,1.0],["2026-03-28",38.90,1.0],["2026-04-04",39.20,1.0]]},
+    {"instrument_id":"asset_seed_bbas3","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",31.80,1.0],["2026-03-21",32.30,1.0],["2026-03-28",33.00,1.0],["2026-04-04",33.40,1.0]]},
+    {"instrument_id":"asset_seed_wege3","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",58.60,1.0],["2026-03-21",59.40,1.0],["2026-03-28",60.30,1.0],["2026-04-04",61.10,1.0]]},
+    {"instrument_id":"asset_seed_embr3","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",42.40,1.0],["2026-03-21",43.90,1.0],["2026-03-28",45.10,1.0],["2026-04-04",45.90,1.0]]},
+    {"instrument_id":"asset_seed_ivvb11","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",369.50,1.0],["2026-03-21",373.80,1.0],["2026-03-28",379.20,1.0],["2026-04-04",382.60,1.0]]},
+    {"instrument_id":"asset_seed_bova11","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",123.10,1.0],["2026-03-21",124.60,1.0],["2026-03-28",126.20,1.0],["2026-04-04",127.40,1.0]]},
+    {"instrument_id":"asset_seed_smal11","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",109.40,1.0],["2026-03-21",110.80,1.0],["2026-03-28",112.50,1.0],["2026-04-04",113.70,1.0]]},
+    {"instrument_id":"asset_seed_hglg11","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",163.50,1.0],["2026-03-21",164.20,1.0],["2026-03-28",165.10,1.0],["2026-04-04",165.80,1.0]]},
+    {"instrument_id":"asset_seed_mxrf11","provider":"seed_local","quality":"seed_local","points":[["2026-03-14",10.08,1.0],["2026-03-21",10.12,1.0],["2026-03-28",10.18,1.0],["2026-04-04",10.21,1.0]]}
+  ]
+}

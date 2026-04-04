@@ -12,6 +12,7 @@ if str(ROOT_DIR) not in sys.path:
 import streamlit as st
 
 from app.config import APP_ICON, APP_NAME
+from app.services.db import initialize_database, seed_asset_catalog, seed_weekly_price_cache
 from app.services.storage import importar_seed_data
 
 
@@ -85,6 +86,99 @@ html, body, [class*="css"] {
     color: #f7fbff;
     font-size: 0.8rem;
     font-weight: 700;
+}
+
+.compare-identity {
+    border-radius: 18px;
+    border: 1px solid rgba(37, 61, 84, 0.10);
+    background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(244,248,252,0.94));
+    box-shadow: 0 16px 32px rgba(31, 52, 73, 0.08);
+    padding: 1rem;
+    min-height: 220px;
+}
+
+.compare-identity-head {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin-bottom: 0.9rem;
+}
+
+.compare-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22), 0 10px 18px rgba(31,52,73,0.16);
+    flex-shrink: 0;
+}
+
+.compare-identity-eyebrow {
+    color: #58708a;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.compare-identity-title {
+    color: #122131;
+    font-size: 1.18rem;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-top: 0.12rem;
+}
+
+.compare-identity-subtitle {
+    color: #5c6f82;
+    font-size: 0.86rem;
+    margin-top: 0.2rem;
+}
+
+.compare-chip-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+.compare-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.32rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(27, 51, 72, 0.08);
+    color: #1a3044;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.compare-detail-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem 0.8rem;
+    margin-top: 0.95rem;
+}
+
+.compare-detail-item {
+    border-radius: 12px;
+    background: rgba(239, 244, 248, 0.88);
+    padding: 0.58rem 0.68rem;
+}
+
+.compare-detail-label {
+    color: #6a7d90;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.compare-detail-value {
+    color: #122131;
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin-top: 0.16rem;
 }
 
 [data-testid="stMetric"] {
@@ -254,7 +348,12 @@ def _setup_page() -> None:
     )
 
     seed = Path(__file__).parent / "data" / "seed.json"
+    asset_seed = Path(__file__).parent / "data" / "asset_seed.json"
+    asset_weekly_seed = Path(__file__).parent / "data" / "asset_weekly_seed.json"
     importar_seed_data(seed)
+    initialize_database()
+    seed_asset_catalog(asset_seed)
+    seed_weekly_price_cache(asset_weekly_seed)
     _inject_global_styles()
 
 
@@ -270,6 +369,7 @@ def _sidebar_nav() -> str:
             "Inventario": "Inventario",
             "Comparador": "Comparador",
             "Adicionar Skin": "Adicionar Skin",
+            "Adicionar Ativo": "Adicionar Ativo",
             "Configuracoes": "Configuracoes",
         }
 
@@ -305,6 +405,10 @@ def main() -> None:
         render()
     elif pagina == "Adicionar Skin":
         from app.ui.adicionar import render
+
+        render()
+    elif pagina == "Adicionar Ativo":
+        from app.ui.adicionar_ativo import render
 
         render()
     elif pagina == "Configuracoes":
