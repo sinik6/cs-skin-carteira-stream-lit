@@ -8,7 +8,9 @@ from datetime import datetime
 
 from app.config import (
     CSFLOAT_CACHE_TTL_SECONDS,
+    CSFLOAT_COOLDOWN_SECONDS,
     CSFLOAT_DELAY_SECONDS,
+    CSFLOAT_FAILURE_THRESHOLD,
     STEAM_CACHE_TTL_SECONDS,
     STEAM_COOLDOWN_SECONDS,
     STEAM_DELAY_SECONDS,
@@ -217,8 +219,12 @@ class PriceService:
             record_provider_success(provider_name)
             return result
 
-        threshold = STEAM_FAILURE_THRESHOLD if provider_name == "steam" else 1000
-        cooldown = STEAM_COOLDOWN_SECONDS if provider_name == "steam" else 0
+        if provider_name == "steam":
+            threshold = STEAM_FAILURE_THRESHOLD
+            cooldown = STEAM_COOLDOWN_SECONDS
+        else:
+            threshold = CSFLOAT_FAILURE_THRESHOLD
+            cooldown = CSFLOAT_COOLDOWN_SECONDS
         record_provider_failure(
             provider_name,
             result.erro or "Falha desconhecida",

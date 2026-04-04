@@ -34,9 +34,57 @@ html, body, [class*="css"] {
 .block-container {
     padding-top: 1rem;
     padding-bottom: 1.25rem;
-    padding-left: 1.1rem;
-    padding-right: 1.1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
     max-width: 100%;
+}
+
+.app-hero {
+    padding: 1rem 1.1rem;
+    margin-top: 0.35rem;
+    margin-bottom: 1rem;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(32,49,66,0.96), rgba(59,85,110,0.92));
+    color: #f7fbff;
+    box-shadow: 0 18px 36px rgba(32,49,66,0.16);
+}
+
+.app-hero-eyebrow {
+    font-size: 0.84rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.74;
+}
+
+.app-hero-title {
+    font-size: 1.72rem;
+    font-weight: 800;
+    margin-top: 0.18rem;
+}
+
+.app-hero-copy {
+    font-size: 0.95rem;
+    opacity: 0.82;
+    margin-top: 0.28rem;
+    line-height: 1.45;
+}
+
+.app-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.app-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #f7fbff;
+    font-size: 0.8rem;
+    font-weight: 700;
 }
 
 [data-testid="stMetric"] {
@@ -117,7 +165,8 @@ html, body, [class*="css"] {
 .stNumberInput label,
 .stTextInput label,
 .stTextArea label,
-.stToggle label {
+.stToggle label,
+.stCheckbox label {
     font-weight: 700 !important;
     color: #33485e !important;
 }
@@ -158,29 +207,28 @@ html, body, [class*="css"] {
 }
 
 [data-testid="stSidebar"][aria-expanded="true"] {
-    min-width: 15rem;
-    max-width: 15rem;
+    min-width: 14rem;
+    max-width: 14rem;
 }
 
 [data-testid="stSidebar"] * {
     color: #f4f7fb !important;
 }
 
-[data-testid="stSidebar"] .stRadio label,
 [data-testid="stSidebar"] .stCaption,
 [data-testid="stSidebar"] p {
-    font-size: 0.92rem !important;
+    font-size: 0.9rem !important;
 }
 
 [data-testid="stSidebar"] h1 {
-    font-size: 1.2rem !important;
+    font-size: 1.16rem !important;
     margin-bottom: 0.25rem !important;
 }
 
 @media (max-width: 1100px) {
     [data-testid="stSidebar"][aria-expanded="true"] {
-        min-width: 13rem;
-        max-width: 13rem;
+        min-width: 12.5rem;
+        max-width: 12.5rem;
     }
 }
 
@@ -220,6 +268,7 @@ def _sidebar_nav() -> str:
         pages = {
             "Carteira": "Carteira",
             "Inventario": "Inventario",
+            "Comparador": "Comparador",
             "Adicionar Skin": "Adicionar Skin",
             "Configuracoes": "Configuracoes",
         }
@@ -248,6 +297,10 @@ def main() -> None:
         render()
     elif pagina == "Inventario":
         from app.ui.inventario import render
+
+        render()
+    elif pagina == "Comparador":
+        from app.ui.comparador import render
 
         render()
     elif pagina == "Adicionar Skin":

@@ -103,6 +103,45 @@ class CSFloatProvider(PriceProvider):
             logger.exception("Erro inesperado CSFloat")
             return PriceResult.falha(self.nome, str(e))
 
+    def buscar_comparaveis(
+        self,
+        market_hash_name: str,
+        float_value: float = 0.0,
+        margem: float = 0.01,
+        paint_seed: str = "",
+        limit: int = PREFERRED_COMPARABLES,
+    ) -> tuple[str, list[dict], bool]:
+        if not self._api_key:
+            raise requests.exceptions.RequestException("API key nao configurada")
+
+        cenarios = self._build_search_scenarios(
+            market_hash_name=market_hash_name,
+            float_value=float_value,
+            margem=margem,
+            paint_seed=paint_seed,
+        )
+
+        melhor_parcial: tuple[str, list[dict], bool] | None = None
+
+        for label, params, usar_float_alvo in cenarios:
+            listings = self._buscar_listings(params)
+            selecionados = self._selecionar_listings(
+                listings,
+                target_float=float_value if usar_float_alvo else 0.0,
+                limit=limit,
+            )
+            if not selecionados:
+                continue
+            if len(selecionados) >= MIN_RELIABLE_COMPARABLES:
+                return label, selecionados, usar_float_alvo
+            if melhor_parcial is None or len(selecionados) > len(melhor_parcial[1]):
+                melhor_parcial = (label, selecionados, usar_float_alvo)
+
+        if melhor_parcial is not None:
+            return melhor_parcial
+
+        raise requests.exceptions.RequestException(f"Nenhum listing encontrado: {market_hash_name}")
+
     def _build_search_scenarios(
         self,
         market_hash_name: str,
@@ -168,12 +207,16 @@ class CSFloatProvider(PriceProvider):
         listings = data if isinstance(data, list) else data.get("data", [])
         return listings if isinstance(listings, list) else []
 
-    def _estimar_preco_usd(self, listings: list[dict], target_float: float = 0.0) -> tuple[float, int]:
-        comparaveis: list[tuple[float, float | None]] = []
+    def _selecionar_listings(
+        self,
+        listings: list[dict],
+        target_float: float = 0.0,
+        limit: int = PREFERRED_COMPARABLES,
+    ) -> list[dict]:
+        comparaveis: list[tuple[dict, float, float | None]] = []
 
         for listing in listings:
-            price_cents = listing.get("price", 0)
-            price_usd = price_cents / 100.0 if price_cents > 0 else 0.0
+            price_usd = self._listing_price_usd(listing)
             if price_usd <= 0:
                 continue
 
@@ -182,26 +225,37 @@ class CSFloatProvider(PriceProvider):
             if not isinstance(listing_float, (int, float)):
                 listing_float = None
 
-            comparaveis.append((price_usd, listing_float))
+            comparaveis.append((listing, price_usd, listing_float))
 
         if not comparaveis:
-            return 0.0, 0
+            return []
 
-        selecionados: list[tuple[float, float | None]]
+        selecionados: list[tuple[dict, float, float | None]]
 
         if target_float > 0:
-            com_float = [item for item in comparaveis if item[1] is not None]
+            com_float = [item for item in comparaveis if item[2] is not None]
             if len(com_float) >= MIN_RELIABLE_COMPARABLES:
-                com_float.sort(key=lambda item: abs((item[1] or 0.0) - target_float))
-                selecionados = com_float[: min(PREFERRED_COMPARABLES, len(com_float))]
+                com_float.sort(key=lambda item: (abs((item[2] or 0.0) - target_float), item[1]))
+                selecionados = com_float[: min(limit, len(com_float))]
             else:
-                comparaveis.sort(key=lambda item: item[0])
-                selecionados = comparaveis[: min(PREFERRED_COMPARABLES, len(comparaveis))]
+                comparaveis.sort(key=lambda item: item[1])
+                selecionados = comparaveis[: min(limit, len(comparaveis))]
         else:
-            comparaveis.sort(key=lambda item: item[0])
-            selecionados = comparaveis[: min(PREFERRED_COMPARABLES, len(comparaveis))]
+            comparaveis.sort(key=lambda item: item[1])
+            selecionados = comparaveis[: min(limit, len(comparaveis))]
 
-        precos = [item[0] for item in selecionados]
+        return [item[0] for item in selecionados]
+
+    def _estimar_preco_usd(self, listings: list[dict], target_float: float = 0.0) -> tuple[float, int]:
+        selecionados = self._selecionar_listings(
+            listings,
+            target_float=target_float,
+            limit=PREFERRED_COMPARABLES,
+        )
+        if not selecionados:
+            return 0.0, 0
+
+        precos = [self._listing_price_usd(item) for item in selecionados]
         return round(float(median(precos)), 2), len(precos)
 
     def _build_success_result(self, preco_usd: float, label: str, usados: int, listings: list[dict] | None = None) -> PriceResult:
@@ -238,6 +292,16 @@ class CSFloatProvider(PriceProvider):
         if elapsed < CSFLOAT_DELAY_SECONDS:
             time.sleep(CSFLOAT_DELAY_SECONDS - elapsed)
         self._last_request = time.time()
+
+    @staticmethod
+    def _listing_price_usd(listing: dict) -> float:
+        price_cents = listing.get("price", 0)
+        return round(price_cents / 100.0, 2) if price_cents > 0 else 0.0
+
+    @classmethod
+    def listing_price_brl(cls, listing: dict, fx_rate: float | None = None) -> float:
+        taxa = fx_rate if fx_rate and fx_rate > 0 else cls._buscar_cambio()
+        return round(cls._listing_price_usd(listing) * taxa, 2)
 
     @staticmethod
     def _buscar_cambio() -> float:

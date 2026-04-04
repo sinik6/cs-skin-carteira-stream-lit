@@ -170,6 +170,84 @@ class ProviderState(BaseModel):
     last_error: str = ""
 
 
+class ComparableListing(BaseModel):
+    """Listing comparavel usado no modo ativo vs item."""
+
+    listing_id: str = ""
+    market_hash_name: str = ""
+    price_brl: float = 0.0
+    price_usd: float = 0.0
+    float_value: float | None = None
+    float_delta: float | None = None
+    paint_seed: str = ""
+    seed_match: bool = False
+    seller_name: str = ""
+    seller_trade_count: int = 0
+    seller_verified_trades: int = 0
+    min_offer_price_brl: float = 0.0
+    watchers: int = 0
+    inspect_link: str = ""
+    image_url: str = ""
+
+
+class ComparisonSnapshot(BaseModel):
+    """Snapshot seguro de comparacao salvo em sessao."""
+
+    skin_id: str
+    skin_name: str
+    market_hash_name: str
+    fetched_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    source_provider: str = "csfloat"
+    source_method: str = ""
+    asset_price_brl: float = 0.0
+    asset_price_source: str = ""
+    benchmark_price_brl: float = 0.0
+    best_offer_price_brl: float = 0.0
+    spread_to_benchmark_brl: float = 0.0
+    spread_to_benchmark_pct: float = 0.0
+    spread_to_best_offer_brl: float = 0.0
+    spread_to_best_offer_pct: float = 0.0
+    comparables_count: int = 0
+    exact_seed_matches: int = 0
+    average_float_gap: float | None = None
+    confidence: str = ""
+    cooldown_active: bool = False
+    note: str = ""
+    comparables: list[ComparableListing] = Field(default_factory=list)
+
+
+class MarketDetailsSnapshot(BaseModel):
+    """Campos adicionais de mercado persistidos localmente."""
+
+    item_name: str = ""
+    wear_name: str = ""
+    collection: str = ""
+    description: str = ""
+    rarity: str = ""
+    asset_id: str = ""
+    paint_index: int = 0
+    paint_seed: str = ""
+    tradable: int = 0
+    has_screenshot: bool = False
+    sticker_count: int = 0
+    scm_price_brl: float = 0.0
+    scm_volume: int = 0
+    watchers_total: int = 0
+    avg_seller_trades: float = 0.0
+    avg_seller_verified: float = 0.0
+
+
+class MarketIntelligenceRecord(BaseModel):
+    """Historico local de inteligencia de mercado por skin."""
+
+    skin_id: str
+    skin_name: str
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    snapshot: ComparisonSnapshot
+    details: MarketDetailsSnapshot = Field(default_factory=MarketDetailsSnapshot)
+    history: list[ComparisonSnapshot] = Field(default_factory=list)
+
+
 class AppData(BaseModel):
     """Dados completos da aplicação."""
 
